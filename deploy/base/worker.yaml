@@ -1,0 +1,96 @@
+# Sandbox pods: no Kubernetes or GCP identity. The only credential inside is
+# the environment key, which can only serve this one environment's queue.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pdf-agent-worker
+automountServiceAccountToken: false
+---
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: pdf-agent-worker
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app: pdf-agent-worker
+    spec:
+      serviceAccountName: pdf-agent-worker
+      automountServiceAccountToken: false
+      runtimeClassName: gvisor
+      nodeSelector:
+        sandbox.gke.io/runtime: gvisor
+      # Required by the add-on's sandbox-core-policy admission check.
+      tolerations:
+        - key: sandbox.gke.io/runtime
+          operator: Equal
+          value: gvisor
+          effect: NoSchedule
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: pdf-agent-worker
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: dispatch
+              containerPort: 8080
+          workingDir: /workspace
+          env:
+            - name: ANTHROPIC_ENVIRONMENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-environment-key
+                  key: value
+            - name: ANTHROPIC_ENVIRONMENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: pdf-agent-config
+                  key: environment_id
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: dispatch
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+              ephemeral-storage: 6Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+              ephemeral-storage: 6Gi
+      volumes:
+        - name: workspace
+          emptyDir:
+            sizeLimit: 5Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: pdf-agent-worker
+spec:
+  sandboxTemplateRef:
+    name: pdf-agent-worker
+  replicas: 2

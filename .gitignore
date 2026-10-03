@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+terraform/.terraform/
+terraform/*.tfstate*
+*.tfplan
+deploy/overlays/*/params.env
+deploy/overlays/*/params.yaml
+deploy/overlays/*/kustomization.yaml.bak
+.pytest_cache/
+.last-image-tag
+results/
+samples/*.pdf

@@ -1,0 +1,31 @@
+substitutions:
+  _REGISTRY: ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/pdf-agent
+  _TAG: dev
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: worker
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: ["build", "-t", "${_REGISTRY}/pdf-agent-worker:${_TAG}", "src/worker"]
+  - id: dispatcher
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: ["build", "-t", "${_REGISTRY}/pdf-agent-dispatcher:${_TAG}", "src/dispatcher"]
+  - id: stats-adapter
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: ["build", "-t", "${_REGISTRY}/pdf-agent-stats-adapter:${_TAG}", "src/stats-adapter"]
+  - id: submit-api
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: ["build", "-t", "${_REGISTRY}/pdf-agent-submit-api:${_TAG}", "src/submit-api"]
+
+images:
+  - ${_REGISTRY}/pdf-agent-worker:${_TAG}
+  - ${_REGISTRY}/pdf-agent-dispatcher:${_TAG}
+  - ${_REGISTRY}/pdf-agent-stats-adapter:${_TAG}
+  - ${_REGISTRY}/pdf-agent-submit-api:${_TAG}

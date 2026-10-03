@@ -1,0 +1,5 @@
+# Teach Kustomize where the image lives inside a SandboxTemplate so
+# `kustomize edit set image` rewrites the worker image too.
+images:
+  - path: spec/podTemplate/spec/containers[]/image
+    kind: SandboxTemplate

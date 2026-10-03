@@ -1,0 +1,6 @@
+Portions of this project (src/stats-adapter/, and the structure of
+src/dispatcher/main.py, src/worker/entrypoint.py, deploy/ and terraform/)
+are adapted from GoogleCloudPlatform/kubernetes-engine-samples,
+ai-ml/anthropic-agent-sandbox, Copyright 2026 Google LLC, licensed under the
+Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+Modified files note their changes in their header comments.

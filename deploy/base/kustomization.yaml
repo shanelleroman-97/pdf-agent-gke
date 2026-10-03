@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pdf-agent
+
+resources:
+  - namespace.yaml
+  - worker.yaml
+  - network-policy.yaml
+  - dispatcher.yaml
+  - stats-adapter.yaml
+
+configurations:
+  - kustomize-config.yaml
+
+configMapGenerator:
+  - name: pdf-agent-config
+    options:
+      disableNameSuffixHash: true
+    literals:
+      - environment_id=PATCHED_BY_OVERLAY
+      - inputs_bucket=PATCHED_BY_OVERLAY
+      - outputs_bucket=PATCHED_BY_OVERLAY
+      - project_id=PATCHED_BY_OVERLAY

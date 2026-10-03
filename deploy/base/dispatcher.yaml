@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pdf-agent-dispatcher
+  annotations:
+    iam.gke.io/gcp-service-account: PATCHED_BY_OVERLAY
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pdf-agent-dispatcher
+rules:
+  # Agent Sandbox CRDs span two API groups; cover both or get 403s at runtime.
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxclaims"]
+    verbs: ["create", "get", "list", "watch", "patch", "delete"]
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxwarmpools", "sandboxtemplates"]
+    verbs: ["get"]
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pdf-agent-dispatcher
+subjects:
+  - kind: ServiceAccount
+    name: pdf-agent-dispatcher
+roleRef:
+  kind: Role
+  name: pdf-agent-dispatcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pdf-agent-dispatcher
+spec:
+  replicas: 1
+  # Never run two pollers/reapers side by side during a rollout.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pdf-agent-dispatcher
+  template:
+    metadata:
+      labels:
+        app: pdf-agent-dispatcher
+    spec:
+      serviceAccountName: pdf-agent-dispatcher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dispatcher
+          image: pdf-agent-dispatcher
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ANTHROPIC_ENVIRONMENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-environment-key
+                  key: value
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-api-key
+                  key: value
+            - name: ANTHROPIC_ENVIRONMENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: pdf-agent-config
+                  key: environment_id
+            - name: INPUTS_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: pdf-agent-config
+                  key: inputs_bucket
+            - name: OUTPUTS_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: pdf-agent-config
+                  key: outputs_bucket
+            - name: SANDBOX_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,5 @@
+pytest>=8
+anthropic==1.11.0
+google-cloud-storage>=3.4,<4
+k8s-agent-sandbox==0.4.6
+kubernetes>=30.0.0,<36.0.0

@@ -1,0 +1,51 @@
+# Sandboxes may reach api.anthropic.com and nothing else (no GCS, no metadata
+# server, no cluster services). Only the dispatcher may reach them.
+apiVersion: networking.gke.io/v1alpha1
+kind: FQDNNetworkPolicy
+metadata:
+  name: pdf-agent-worker-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: pdf-agent-worker
+  egress:
+    - matches:
+        - name: api.anthropic.com
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# The FQDN policy alone is not a deny; this supplies default-deny plus the
+# two carve-outs sandboxes need.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pdf-agent-worker-default-deny
+spec:
+  podSelector:
+    matchLabels:
+      app: pdf-agent-worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: pdf-agent-dispatcher
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
