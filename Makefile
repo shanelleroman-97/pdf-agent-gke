@@ -16,7 +16,7 @@ GSA = pdf-agent-$(1)@$(PROJECT_ID).iam.gserviceaccount.com
 SECRET_ENV_KEY := pdf-agent-anthropic-environment-key
 SECRET_API_KEY := pdf-agent-anthropic-api-key
 
-.PHONY: check bootstrap infra secrets images creds k8s-secrets deploy api agent status verify-egress destroy
+.PHONY: check bootstrap infra secrets images creds k8s-secrets deploy api agent status verify-egress pause resume destroy
 
 check:
 	@test -n "$(PROJECT_ID)" || { echo "PROJECT_ID is empty: source .env"; exit 1; }
@@ -106,6 +106,18 @@ status: creds
 ## Prove sandboxes can reach only api.anthropic.com. Run after every deploy.
 verify-egress: creds
 	NAMESPACE=$(NAMESPACE) scripts/verify_egress.sh
+
+## Stop all pods (Autopilot bills per pod). New sessions wait in Anthropic's
+## queue until `make resume`. Cloud Run already scales to zero on its own.
+pause: creds
+	-kubectl -n $(NAMESPACE) scale deploy/pdf-agent-stats-adapter --replicas 0 2>/dev/null
+	kubectl -n $(NAMESPACE) scale deploy/pdf-agent-dispatcher --replicas 0
+	kubectl -n $(NAMESPACE) patch sandboxwarmpool pdf-agent-worker --type merge -p '{"spec":{"replicas":0}}'
+
+resume: creds
+	kubectl -n $(NAMESPACE) patch sandboxwarmpool pdf-agent-worker --type merge -p '{"spec":{"replicas":1}}'
+	kubectl -n $(NAMESPACE) scale deploy/pdf-agent-dispatcher --replicas 1
+	-kubectl -n $(NAMESPACE) scale deploy/pdf-agent-stats-adapter --replicas 1 2>/dev/null
 
 destroy: check
 	cd terraform && terraform destroy
