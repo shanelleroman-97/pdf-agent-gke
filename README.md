@@ -80,6 +80,7 @@ make infra          # ~20 min: VPC, NAT, Autopilot + Agent Sandbox, buckets, SAs
 make secrets        # adds key values to Secret Manager
 make images         # Cloud Build: worker, dispatcher, stats-adapter, submit-api
 make deploy         # OVERLAY=01_single_session (one warm pod) by default
+make verify-egress  # sandbox can reach api.anthropic.com and nothing else
 make api            # Submit API on Cloud Run; prints SUBMIT_API_URL
 ```
 
@@ -111,6 +112,8 @@ For browser users, put the service behind IAP; the API records
 ## Operations
 
 - `make status` shows the warm pool, active claims, and pods.
+- `make verify-egress` checks from inside a sandbox that only `api.anthropic.com`
+  is reachable. Run it after every deploy or add-on upgrade.
 - Logs: `kubectl -n pdf-agent logs deploy/pdf-agent-dispatcher` and worker pods (JSON lines).
 - Each session's trace: `https://platform.claude.com/workspaces/default/sessions/<id>`.
 - Tune the agent: edit `setup/anthropic_setup.py`, rerun `… agent` (new version; running sessions keep theirs).
@@ -140,9 +143,17 @@ For browser users, put the service behind IAP; the API records
 4. **Secrets** out of Terraform; **remote state** in GCS.
 5. **Private nodes** + Cloud NAT, dedicated VPC, minimal node service account,
    dedicated Cloud Build service account.
-6. **Python SDK worker** (`EnvironmentWorker`) instead of the `ant` CLI, so custom
+6. **Egress lockdown that actually holds.** Two Agent Sandbox defaults silently
+   undo the sample's FQDN policy: the controller adds its own NetworkPolicy
+   allowing the whole public internet (policies are additive), and it points
+   pod DNS at 8.8.8.8/1.1.1.1, bypassing cluster DNS that FQDN policies rely
+   on. The template sets `networkPolicyManagement: Unmanaged` and
+   `dnsPolicy: ClusterFirst`; `make verify-egress` proves the result.
+7. **Work items are acked** before hand-off. The sample's raw poll never acked,
+   so the SDK worker had no lease and exited without running the session.
+8. **Python SDK worker** (`EnvironmentWorker`) instead of the `ant` CLI, so custom
    tools can be added later.
-7. **Submit API**, per-session **budget**, **outcome + rubric** kickoff.
+9. **Submit API**, per-session **budget**, **outcome + rubric** kickoff.
 
 ## Known limits / next hardening steps
 

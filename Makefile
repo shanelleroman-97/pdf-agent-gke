@@ -16,7 +16,7 @@ GSA = pdf-agent-$(1)@$(PROJECT_ID).iam.gserviceaccount.com
 SECRET_ENV_KEY := pdf-agent-anthropic-environment-key
 SECRET_API_KEY := pdf-agent-anthropic-api-key
 
-.PHONY: check bootstrap infra secrets images creds k8s-secrets deploy api agent status destroy
+.PHONY: check bootstrap infra secrets images creds k8s-secrets deploy api agent status verify-egress destroy
 
 check:
 	@test -n "$(PROJECT_ID)" || { echo "PROJECT_ID is empty: source .env"; exit 1; }
@@ -102,6 +102,10 @@ agent:
 
 status: creds
 	kubectl -n $(NAMESPACE) get sandboxwarmpool,sandboxclaims,pods
+
+## Prove sandboxes can reach only api.anthropic.com. Run after every deploy.
+verify-egress: creds
+	NAMESPACE=$(NAMESPACE) scripts/verify_egress.sh
 
 destroy: check
 	cd terraform && terraform destroy

@@ -155,6 +155,15 @@ read-write into every pod (and allowed egress to GCS and the metadata server),
 so a manipulated agent could read or overwrite every other session's results.
 Here, only the trusted dispatcher moves data in and out of sandboxes.
 
+**Verified, not assumed.** The first deploy showed that the Agent Sandbox
+add-on's defaults silently re-open egress: the controller adds a NetworkPolicy
+allowing all public IPs and sets pod DNS to 8.8.8.8/1.1.1.1, which bypasses
+FQDN policies. With those defaults, a sandbox could reach `example.com` and
+`storage.googleapis.com`. The template now opts out of both
+(`networkPolicyManagement: Unmanaged`, `dnsPolicy: ClusterFirst`), and
+`make verify-egress` checks from inside a live sandbox that only
+`api.anthropic.com` is reachable. Re-run it after add-on upgrades.
+
 Pods also run as non-root with a read-only root filesystem and all Linux
 capabilities dropped, and the namespace enforces the `restricted` Pod Security
 Standard.

@@ -11,6 +11,10 @@ kind: SandboxTemplate
 metadata:
   name: pdf-agent-worker
 spec:
+  # The controller's default ("Managed") policy allows egress to the whole
+  # public internet, and NetworkPolicies are additive, so it would override
+  # network-policy.yaml. Unmanaged leaves egress to our policies alone.
+  networkPolicyManagement: Unmanaged
   podTemplate:
     metadata:
       labels:
@@ -28,6 +32,10 @@ spec:
           value: gvisor
           effect: NoSchedule
       enableServiceLinks: false
+      # The controller otherwise injects public resolvers (8.8.8.8/1.1.1.1).
+      # FQDNNetworkPolicy only sees lookups that go through cluster DNS, and
+      # network-policy.yaml only allows DNS to kube-dns.
+      dnsPolicy: ClusterFirst
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
