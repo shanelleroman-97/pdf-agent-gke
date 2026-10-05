@@ -8,6 +8,58 @@ Built on Google's [GKE Agent Sandbox sample](https://github.com/GoogleCloudPlatf
 and Anthropic's [self-hosted sandboxes](https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes),
 hardened for production use (see [What changed from the sample](#what-changed-from-the-sample)).
 
+## What I built
+
+A production-grade PDF analysis agent on Claude Managed Agents, with the agent's
+tools running in my own Google Cloud project instead of Anthropic's sandboxes:
+
+- **Agent:** Claude reads a PDF (including scanned pages via OCR), writes a cited
+  report, and a grader checks it against a rubric before it's returned.
+- **Self-hosted sandboxes on GKE:** one gVisor-isolated pod per session, from a
+  warm pool, through GKE Agent Sandbox.
+- **Dispatcher:** polls Anthropic's work queue, hands each session to a sandbox,
+  stages the input PDF, and collects outputs to Cloud Storage.
+- **Autoscaler:** sizes the warm pool from queue depth.
+- **Submit API:** a Cloud Run service for uploading PDFs and fetching results.
+- **Security:** egress locked to `api.anthropic.com`, no cloud or Kubernetes
+  credentials in sandboxes, private nodes, verified from inside a live sandbox.
+- **Infrastructure as code:** Terraform for 38 GCP resources, Kustomize overlays,
+  Cloud Build images.
+
+Size: 44 files: 1,407 lines of Python, 417 of Terraform, 476 of Kubernetes YAML,
+495 of docs.
+
+## How long it took
+
+**About 1 hour 53 minutes** from the first design decision to a verified, locked-down
+deployment, built with Claude Code on October 2, 2026. For comparison, a web app on
+the same Managed Agents API with Anthropic-hosted sandboxes took about 18 minutes.
+
+| Phase | Time |
+|---|---|
+| Design and decisions (use case, infra, isolation model) | 25 min |
+| Code and local tests (worker, dispatcher, API, manifests, Terraform) | 35 min |
+| Provisioning (cluster about 9 min, Agent Sandbox add-on about 13 min) | 35 min |
+| Deploy and debug to first successful analysis | 23 min |
+| Security fix and re-verification | 12 min |
+| **Total to first success / to verified secure** | **101 min / 113 min** |
+
+Along the way: 29 steps, 11 manual actions, and 15 issues, 6 of them blocking
+(about 51 minutes lost). The ones that mattered most:
+
+| Issue | Impact |
+|---|---|
+| Sessions finished with no tool calls and no error, because the dispatcher polled work without acknowledging it | 14 min; invisible in the Claude Console |
+| Agent Sandbox's default network policy and DNS reopened public egress despite a default-deny policy | 10 min; sandboxes could reach the internet until fixed |
+| The sample's pinned GKE version was retired; the add-on's admission policy required a gVisor toleration | 5 min; blocking |
+| The environment key can only be created in the Console | 5 min; keyed the wrong environment at first |
+| Self-hosted sessions don't support file resources or outputs | Had to build PDF staging and output collection |
+
+Running cost: about $55 a month with one warm sandbox, about $1 a month when paused,
+and about $0.50 of Claude usage per analysis (list prices).
+
+Full step-by-step timeline, issues, and test runs: [docs/cuj.json](docs/cuj.json).
+
 ## Architecture
 
 Full walkthrough, security model, and a self-hosted vs. cloud-sandbox comparison:
