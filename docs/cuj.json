@@ -1,0 +1,741 @@
+{
+  "document": "Critical User Journey: building on Claude Managed Agents (Anthropic cloud sandbox vs. GKE self-hosted sandbox)",
+  "date": "2026-10-02",
+  "timezone": "America/Los_Angeles (PDT, UTC-7)",
+  "persona": "Developer with an existing Managed Agent, new to self-hosted sandboxes; macOS 14, Node 21, Python 3.13; GCP project golden-veld-361718",
+  "assistant": "Claude Code (claude-opus-5-5)",
+  "timing_sources": {
+    "measured": "Taken from system records: git commits, Anthropic resource/session created_at, GKE operations, Cloud Build, Cloud Run revisions, GCS/Secret Manager create times, Vercel deployment.",
+    "estimated": "Inferred from neighbouring measured events; accurate to roughly +/- 3 minutes."
+  },
+  "summary": {
+    "journeys": 2,
+    "total_wall_clock": "~2h20m (19:05 to 21:26), including design discussion and a security review",
+    "journey_1_time_to_production": "~18 min",
+    "journey_2_time_to_first_successful_analysis": "~1h40m from starting the GKE build (~19:25) to 21:06; ~2h from the first self-hosted question",
+    "journey_2_time_to_verified_secure": "21:17:54 (+12 min after first success)",
+    "total_steps": 38,
+    "user_manual_actions": 14,
+    "user_decisions_requested": 10,
+    "issues_encountered": 18,
+    "issues_blocking": 6,
+    "claude_session_spend_usd": 1.52,
+    "outcome": "Both journeys succeeded. Journey 2 shipped to a private GitHub repo with an end-to-end-verified, egress-locked GKE deployment."
+  },
+  "journeys": [
+    {
+      "id": "CUJ-1",
+      "name": "Ship a web app that runs an existing Managed Agent (Anthropic cloud sandbox) on Vercel",
+      "goal": "Turn agent agent_01QNGSPPJTCXP1oadMR3HSJ8 (web research) into a deployed web app.",
+      "sandbox": "Anthropic-managed cloud environment",
+      "start": "2026-10-02T19:05:00-07:00",
+      "start_source": "estimated",
+      "end": "2026-10-02T19:23:32-07:00",
+      "end_source": "measured (production test session updated_at)",
+      "duration_minutes": 18,
+      "steps_total": 9,
+      "user_manual_actions": 3,
+      "outcome": "success",
+      "artifacts": {
+        "repo_path": "~/research-agent-app",
+        "production_url": "https://research-agent-app-one.vercel.app",
+        "app_code_lines": 360,
+        "commits": [
+          "e2a4f9e",
+          "0d2ce7b"
+        ]
+      },
+      "steps": [
+        {
+          "n": 1,
+          "phase": "Setup",
+          "step": "Read Managed Agents docs (sessions, environments, event streaming)",
+          "actor": "assistant",
+          "start": "19:05",
+          "end": "19:08",
+          "source": "estimated",
+          "status": "done"
+        },
+        {
+          "n": 2,
+          "phase": "Build",
+          "step": "Scaffold Next.js 16 app and install @anthropic-ai/sdk",
+          "actor": "assistant",
+          "end": "19:10:37",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 3,
+          "phase": "Build",
+          "step": "Write session-start API route, SSE stream route (history replay + dedupe), and UI",
+          "actor": "assistant",
+          "start": "19:10:37",
+          "end": "19:14",
+          "source": "estimated",
+          "status": "done",
+          "notes": "Pasted integration guide said sessions take an 'instructions' field; the API takes agent + environment_id, and the question goes in a separate user.message event."
+        },
+        {
+          "n": 4,
+          "phase": "Configure",
+          "step": "Provide Anthropic API key",
+          "actor": "user",
+          "status": "done",
+          "notes": "Pasted in chat; key ended up in the transcript."
+        },
+        {
+          "n": 5,
+          "phase": "Configure",
+          "step": "Create cloud environment (one-time script)",
+          "actor": "assistant",
+          "status": "done"
+        },
+        {
+          "n": 6,
+          "phase": "Verify",
+          "step": "Local end-to-end research session",
+          "actor": "assistant",
+          "end": "19:18:43",
+          "source": "measured",
+          "duration_seconds": 11,
+          "cost_usd": 0.08,
+          "status": "pass"
+        },
+        {
+          "n": 7,
+          "phase": "Harden",
+          "step": "Add HTTP Basic Auth (proxy.ts) and commit",
+          "actor": "assistant",
+          "end": "19:19:36",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 8,
+          "phase": "Deploy",
+          "step": "vercel login (device flow), link project, add env vars, deploy to production",
+          "actor": "user+assistant",
+          "end": "19:22:26",
+          "source": "measured",
+          "status": "done",
+          "user_actions": [
+            "vercel login"
+          ]
+        },
+        {
+          "n": 9,
+          "phase": "Verify",
+          "step": "Production end-to-end test (auth check + research session)",
+          "actor": "assistant",
+          "end": "19:23:32",
+          "source": "measured",
+          "cost_usd": 0.0,
+          "status": "pass"
+        }
+      ],
+      "issues": [
+        {
+          "id": "C1-1",
+          "severity": "low",
+          "blocking": false,
+          "title": "Integration guide shape differs from the API",
+          "detail": "Guide showed POST /v1/sessions with 'instructions'; the API takes agent + environment_id, and the prompt is sent as a user.message event.",
+          "time_lost_minutes": 0
+        },
+        {
+          "id": "C1-2",
+          "severity": "low",
+          "blocking": false,
+          "title": "Next.js 16 breaking changes",
+          "detail": "middleware renamed to proxy.ts; RouteContext typing requires `next typegen`.",
+          "time_lost_minutes": 2
+        },
+        {
+          "id": "C1-3",
+          "severity": "low",
+          "blocking": false,
+          "title": "Build failed on missing env at build time",
+          "detail": "Module-level env reads ran during `next build`; made them lazy.",
+          "time_lost_minutes": 1
+        }
+      ]
+    },
+    {
+      "id": "CUJ-2",
+      "name": "Run a Managed Agent with self-hosted sandboxes on GKE (production-grade PDF analysis)",
+      "goal": "Same Managed Agents control plane, but every tool call runs in a gVisor pod on the user's GKE Autopilot cluster, with data and egress kept in the user's boundary.",
+      "sandbox": "Self-hosted environment on GKE Agent Sandbox (gVisor), one pod per session",
+      "start": "2026-10-02T19:25:00-07:00",
+      "start_source": "estimated (user asks for self-hosted sandboxes)",
+      "first_success": "2026-10-02T21:06:00-07:00",
+      "verified_secure": "2026-10-02T21:17:54-07:00",
+      "end": "2026-10-02T21:25:58-07:00",
+      "end_source": "measured (pause: node pool deleted)",
+      "duration_minutes": {
+        "design_and_decisions": 25,
+        "code_authoring_and_local_tests": 35,
+        "provisioning_to_ready_cluster": 35,
+        "deploy_debug_to_first_success": 23,
+        "security_fix_and_reverify": 12,
+        "total_to_first_success": 101,
+        "total_to_verified_secure": 113,
+        "total": 121
+      },
+      "steps_total": 29,
+      "user_manual_actions": 11,
+      "outcome": "success",
+      "artifacts": {
+        "repo": "https://github.com/shanelleroman-97/pdf-agent-gke (private)",
+        "commits": [
+          "62318c7",
+          "19550f3",
+          "e441afe"
+        ],
+        "files": 44,
+        "lines": {
+          "python": 1407,
+          "terraform": 417,
+          "kubernetes_yaml": 476,
+          "docs_markdown": 495
+        },
+        "gcp_resources_created": 38,
+        "anthropic": {
+          "environment": "env_01DvzjY5L1gEiHQp1gAWxoV1",
+          "agent": "agent_01EGhQJUiZ7gC9sjFuyfKA5U"
+        },
+        "submit_api": "https://pdf-agent-submit-api-2woiurl7ta-uc.a.run.app",
+        "cluster": {
+          "name": "pdf-agent",
+          "region": "us-central1",
+          "version": "1.36.4-gke.1391000",
+          "agent_sandbox_addon": true
+        }
+      },
+      "steps": [
+        {
+          "n": 1,
+          "phase": "Design",
+          "step": "Choose agent use case, infra target, isolation model, language",
+          "actor": "user",
+          "decisions": [
+            "PDF analysis",
+            "GCP",
+            "container per session",
+            "Python"
+          ],
+          "status": "done"
+        },
+        {
+          "n": 2,
+          "phase": "Design",
+          "step": "Compare GKE Agent Sandbox vs Cloud Run Jobs vs single VM vs worker pool",
+          "actor": "assistant",
+          "status": "done",
+          "decision": "GKE Agent Sandbox (user: 'production grade, mid-tier enterprise')"
+        },
+        {
+          "n": 3,
+          "phase": "Design",
+          "step": "Read Anthropic self-hosted docs + Google's GKE sample; identify gaps",
+          "actor": "assistant",
+          "end": "19:38:34",
+          "source": "measured (sample clone)",
+          "status": "done",
+          "findings": [
+            "sample mounts the whole outputs bucket read-write into every sandbox",
+            "no input staging",
+            "keys in Terraform state",
+            "claims never cleaned up"
+          ]
+        },
+        {
+          "n": 4,
+          "phase": "Prereqs",
+          "step": "Pick GCP project",
+          "actor": "user",
+          "status": "done",
+          "notes": "The active gcloud project belonged to a different account; switched to golden-veld-361718."
+        },
+        {
+          "n": 5,
+          "phase": "Prereqs",
+          "step": "gcloud components update (480 -> 587) and gcloud auth login",
+          "actor": "user",
+          "status": "done"
+        },
+        {
+          "n": 6,
+          "phase": "Prereqs",
+          "step": "Install terraform, kustomize; verify SDK APIs (EnvironmentWorker, poll, metadata, budgets)",
+          "actor": "assistant",
+          "end": "19:49:20",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 7,
+          "phase": "Build",
+          "step": "Worker image + entrypoint (Python SDK EnvironmentWorker, in-cluster staging API)",
+          "actor": "assistant",
+          "end": "19:53:34",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 8,
+          "phase": "Build",
+          "step": "Dispatcher (poll, stage PDF, claim warm pod, reap + collect outputs)",
+          "actor": "assistant",
+          "status": "done"
+        },
+        {
+          "n": 9,
+          "phase": "Build",
+          "step": "Submit API (Cloud Run), agent setup script, CLI client",
+          "actor": "assistant",
+          "status": "done"
+        },
+        {
+          "n": 10,
+          "phase": "Build",
+          "step": "Kubernetes manifests + overlays; Terraform (VPC, NAT, private Autopilot, IAM, buckets, secrets)",
+          "actor": "assistant",
+          "end": "19:58:58",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 11,
+          "phase": "Build",
+          "step": "Local validation: terraform validate, kustomize build, worker HTTP contract test, 9 dispatcher unit tests",
+          "actor": "assistant",
+          "status": "pass"
+        },
+        {
+          "n": 12,
+          "phase": "Docs",
+          "step": "README + architecture doc + self-hosted vs cloud comparison",
+          "actor": "assistant",
+          "status": "done"
+        },
+        {
+          "n": 13,
+          "phase": "Configure",
+          "step": "Create self-hosted environment + agent (web tools disabled)",
+          "actor": "assistant",
+          "end": "20:11:15",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 14,
+          "phase": "Configure",
+          "step": "Generate environment key in Console",
+          "actor": "user",
+          "end": "~20:16",
+          "source": "estimated",
+          "status": "done after retry",
+          "notes": "Console-only step; user first created a second environment and a key for that environment."
+        },
+        {
+          "n": 15,
+          "phase": "Configure",
+          "step": "gcloud auth application-default login",
+          "actor": "user",
+          "status": "done after retry",
+          "notes": "First attempt typed with a leading space, so it was sent as a message instead of a command."
+        },
+        {
+          "n": 16,
+          "phase": "Provision",
+          "step": "Terraform state bucket (make bootstrap)",
+          "actor": "assistant",
+          "end": "20:11:27",
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 17,
+          "phase": "Provision",
+          "step": "terraform plan (38 resources) + apply #1",
+          "actor": "assistant",
+          "end": "~20:20",
+          "source": "estimated",
+          "status": "partial failure",
+          "issue": "C2-3"
+        },
+        {
+          "n": 18,
+          "phase": "Provision",
+          "step": "Add secret values to Secret Manager (out of band)",
+          "actor": "assistant",
+          "end": "20:18:40",
+          "source": "measured (secret create time)",
+          "status": "done"
+        },
+        {
+          "n": 19,
+          "phase": "Provision",
+          "step": "Cloud Build images (4)",
+          "actor": "assistant",
+          "start": "20:20:24",
+          "duration_seconds": 94,
+          "source": "measured",
+          "status": "pass after retry",
+          "issue": "C2-5"
+        },
+        {
+          "n": 20,
+          "phase": "Provision",
+          "step": "GKE Autopilot cluster create",
+          "actor": "automated",
+          "start": "20:20:33",
+          "end": "20:29:16",
+          "duration_seconds": 523,
+          "source": "measured",
+          "status": "done"
+        },
+        {
+          "n": 21,
+          "phase": "Provision",
+          "step": "Enable Agent Sandbox add-on (gcloud beta ... --enable-agent-sandbox)",
+          "actor": "automated",
+          "start": "20:29:29",
+          "end": "20:42:12",
+          "duration_seconds": 763,
+          "source": "measured",
+          "status": "done",
+          "notes": "No progress output for the whole ~13 minutes."
+        },
+        {
+          "n": 22,
+          "phase": "Deploy",
+          "step": "Submit API to Cloud Run (4 revisions)",
+          "actor": "assistant",
+          "start": "20:23:24",
+          "end": "20:27:30",
+          "source": "measured",
+          "status": "pass after fixes",
+          "issues": [
+            "C2-6",
+            "C2-7"
+          ]
+        },
+        {
+          "n": 23,
+          "phase": "Deploy",
+          "step": "Install gke-gcloud-auth-plugin; make deploy (secrets, manifests)",
+          "actor": "assistant",
+          "end": "20:44:41",
+          "source": "measured (node pool created)",
+          "status": "pass after fix",
+          "issue": "C2-4"
+        },
+        {
+          "n": 24,
+          "phase": "Verify",
+          "step": "End-to-end test #1",
+          "actor": "assistant",
+          "start": "20:47:00",
+          "end": "20:49:13",
+          "source": "measured",
+          "cost_usd": 0.42,
+          "status": "fail",
+          "issue": "C2-1"
+        },
+        {
+          "n": 25,
+          "phase": "Fix",
+          "step": "Ack work items in dispatcher; rebuild + redeploy",
+          "actor": "assistant",
+          "end": "21:01",
+          "source": "estimated (build at 20:59:02)",
+          "status": "done"
+        },
+        {
+          "n": 26,
+          "phase": "Verify",
+          "step": "End-to-end test #2 (OCR'd amendment, caught injection, grader: needs_revision -> satisfied)",
+          "actor": "assistant",
+          "start": "21:02:39",
+          "end": "21:06:00",
+          "duration_seconds": 201,
+          "source": "measured",
+          "cost_usd": 0.53,
+          "status": "pass"
+        },
+        {
+          "n": 27,
+          "phase": "Ship",
+          "step": "Commit, gh auth login, create private repo, push",
+          "actor": "user+assistant",
+          "end": "21:06",
+          "source": "estimated (commit 21:03:29)",
+          "status": "done",
+          "user_actions": [
+            "gh auth login"
+          ]
+        },
+        {
+          "n": 28,
+          "phase": "Harden",
+          "step": "In-sandbox egress test -> found lockdown bypassed -> Unmanaged policy + ClusterFirst DNS -> make verify-egress -> e2e test #3",
+          "actor": "assistant",
+          "start": "~21:08",
+          "end": "21:17:54",
+          "source": "measured (test #3 session)",
+          "cost_usd": 0.49,
+          "status": "pass",
+          "issue": "C2-2"
+        },
+        {
+          "n": 29,
+          "phase": "Operate",
+          "step": "Pause: scale dispatcher + warm pool to 0 (make pause)",
+          "actor": "assistant",
+          "end": "21:25:58",
+          "source": "measured (node pool deleted)",
+          "status": "done",
+          "steady_state_cost_paused_usd_per_month": 1
+        }
+      ],
+      "user_manual_actions_list": [
+        "Choose project/infra/isolation/language (4 decisions)",
+        "gcloud components update",
+        "gcloud auth login",
+        "Generate environment key in Console (x2: wrong environment first)",
+        "gcloud auth application-default login (x2: first attempt not executed)",
+        "brew install anthropics/tap/ant (optional)",
+        "gh auth login",
+        "Approve plan scope / GCP project / visibility"
+      ],
+      "issues": [
+        {
+          "id": "C2-1",
+          "severity": "critical",
+          "blocking": true,
+          "category": "reference-sample gap",
+          "title": "Sessions silently did nothing: work items never acked",
+          "detail": "Raw work.poll without work.ack means EnvironmentWorker.handle_item has no lease and returns in under 1s with no error; the queue re-offers the item every 2 min. Logs showed phase=done with empty outputs. Google's sample has the same gap.",
+          "detection": "dispatcher logs + Cloud Logging + reading SDK _poller.py",
+          "fix": "ack after claiming a pod, before hand-off; stop the item if hand-off fails after ack",
+          "time_lost_minutes": 14,
+          "cost_usd": 0.42
+        },
+        {
+          "id": "C2-2",
+          "severity": "critical",
+          "blocking": false,
+          "category": "security / platform default",
+          "title": "Egress lockdown silently bypassed by Agent Sandbox defaults",
+          "detail": "Controller-managed NetworkPolicy allows 0.0.0.0/0 (policies are additive, overriding default-deny) and sets pod DNS to 8.8.8.8/1.1.1.1, bypassing the cluster DNS that FQDNNetworkPolicy relies on. Sandboxes could reach example.com and storage.googleapis.com. The sample's FQDN policy never actually took effect.",
+          "detection": "manual in-sandbox egress test after first success",
+          "fix": "networkPolicyManagement: Unmanaged + dnsPolicy: ClusterFirst; added make verify-egress",
+          "time_lost_minutes": 10
+        },
+        {
+          "id": "C2-3",
+          "severity": "high",
+          "blocking": true,
+          "category": "reference-sample drift",
+          "title": "Pinned GKE version retired",
+          "detail": "Sample pins min_master_version 1.35.2-gke.1269000 -> 400 'Master version is unsupported'.",
+          "fix": "unpin; use RAPID channel default (1.36.4)",
+          "time_lost_minutes": 3
+        },
+        {
+          "id": "C2-4",
+          "severity": "high",
+          "blocking": true,
+          "category": "reference-sample drift",
+          "title": "Admission policy requires gVisor toleration",
+          "detail": "sandbox-core-policy rejects SandboxTemplate without toleration sandbox.gke.io/runtime=gvisor:NoSchedule; not in sample.",
+          "fix": "add toleration",
+          "time_lost_minutes": 2
+        },
+        {
+          "id": "C2-5",
+          "severity": "medium",
+          "blocking": true,
+          "category": "GCP propagation",
+          "title": "Cloud Build 403 right after enabling the API",
+          "detail": "builds.create PERMISSION_DENIED for a project owner, ~30s after cloudbuild API enable; service agent not yet provisioned.",
+          "fix": "retry",
+          "time_lost_minutes": 2
+        },
+        {
+          "id": "C2-6",
+          "severity": "low",
+          "blocking": false,
+          "category": "GCP platform",
+          "title": "Cloud Run reserves /healthz",
+          "detail": "Google Front End returns its own 404 for paths ending in 'z'.",
+          "fix": "rename to /health",
+          "time_lost_minutes": 3
+        },
+        {
+          "id": "C2-7",
+          "severity": "low",
+          "blocking": true,
+          "category": "self-inflicted",
+          "title": "Makefile image tag drift",
+          "detail": "Recursively expanded $(shell date) produced different tags for build vs deploy.",
+          "fix": "expand TAG once",
+          "time_lost_minutes": 2
+        },
+        {
+          "id": "C2-8",
+          "severity": "medium",
+          "blocking": true,
+          "category": "console UX",
+          "title": "Environment key is Console-only; user created a second environment",
+          "detail": "Key generation exists only in Console; user created 'data-analysis-manual' and its key instead of keying the API-created environment. Keys are environment-scoped.",
+          "time_lost_minutes": 5
+        },
+        {
+          "id": "C2-9",
+          "severity": "medium",
+          "blocking": false,
+          "category": "console UX / safety",
+          "title": "Console quickstart command would run tools unsandboxed on a laptop",
+          "detail": "`ant beta:worker poll --workdir /workspace` pasted from Console runs agent bash directly on the host (and fails on macOS: /workspace not creatable).",
+          "time_lost_minutes": 2
+        },
+        {
+          "id": "C2-10",
+          "severity": "medium",
+          "blocking": false,
+          "category": "prereqs",
+          "title": "Tooling prerequisites",
+          "detail": "gcloud 480 < 565 required; beta component missing; ADC missing; gke-gcloud-auth-plugin missing; gh token expired.",
+          "time_lost_minutes": 8
+        },
+        {
+          "id": "C2-11",
+          "severity": "medium",
+          "blocking": false,
+          "category": "product gap",
+          "title": "No file/GitHub resources or session outputs on self-hosted",
+          "detail": "Had to build metadata-based PDF staging and dispatcher-side output collection (+ reaper).",
+          "time_lost_minutes": 0
+        },
+        {
+          "id": "C2-12",
+          "severity": "low",
+          "blocking": false,
+          "category": "observability",
+          "title": "workers_polling stayed 0 while dispatcher polled",
+          "detail": "Queue stats didn't reflect the raw-poll dispatcher.",
+          "time_lost_minutes": 0
+        },
+        {
+          "id": "C2-13",
+          "severity": "low",
+          "blocking": false,
+          "category": "API versioning",
+          "title": "v1alpha1 deprecated; library pinned",
+          "detail": "k8s-agent-sandbox pinned to 0.4.6 (last v1alpha1-compatible); cluster serves v1beta1 as storage version.",
+          "time_lost_minutes": 0
+        },
+        {
+          "id": "C2-14",
+          "severity": "low",
+          "blocking": false,
+          "category": "UX",
+          "title": "Add-on enablement takes ~13 min with no progress output",
+          "time_lost_minutes": 0
+        },
+        {
+          "id": "C2-15",
+          "severity": "low",
+          "blocking": false,
+          "category": "security hygiene",
+          "title": "Secrets pasted into chat",
+          "detail": "API key and environment key shared in the conversation; rotation recommended.",
+          "time_lost_minutes": 0
+        }
+      ],
+      "test_runs": [
+        {
+          "session": "sesn_01UwaAPUJ2Qzz6imnS1JuuhX",
+          "start": "20:47:00",
+          "result": "fail (ack bug)",
+          "active_seconds": 125.3,
+          "cost_usd": 0.42
+        },
+        {
+          "session": "sesn_01GqqxMC3Lh3mRyCTVwuSeyz",
+          "start": "21:02:39",
+          "end": "21:06:00",
+          "result": "pass",
+          "grader": [
+            "needs_revision",
+            "satisfied"
+          ],
+          "active_seconds": 160.9,
+          "cost_usd": 0.53,
+          "quality_checks": {
+            "ocr_caught_net45_to_net30": true,
+            "prompt_injection_reported_not_followed": true,
+            "page_citations": true,
+            "table_totals_verified": true
+          }
+        },
+        {
+          "session": "sesn_01KZoeDJ6xnVD2kjiYdGzBBH",
+          "start": "21:15:27",
+          "end": "21:17:54",
+          "result": "pass (under egress lockdown)",
+          "grader": [
+            "needs_revision",
+            "satisfied"
+          ],
+          "active_seconds": 139.4,
+          "cost_usd": 0.49
+        }
+      ],
+      "egress_verification": {
+        "api.anthropic.com": "allow",
+        "example.com": "deny",
+        "storage.googleapis.com": "deny",
+        "metadata_server": "deny",
+        "kubernetes_api": "deny",
+        "8.8.8.8_by_ip": "deny",
+        "github.com": "deny"
+      },
+      "cost_estimates_usd_per_month": {
+        "paused": 1,
+        "running_single_warm_sandbox": 55,
+        "running_autoscale_min2": 100,
+        "per_analysis_claude": 0.5,
+        "notes": "List prices; GKE free-tier credit ($74.40/mo per billing account) assumed to cover the Autopilot cluster fee; this is the only cluster on its billing account."
+      }
+    }
+  ],
+  "comparison": {
+    "cloud_sandbox_cuj1": {
+      "time_to_production_minutes": 18,
+      "steps": 9,
+      "user_manual_actions": 3,
+      "app_code_lines": 360,
+      "infra_code_lines": 0,
+      "blocking_issues": 0
+    },
+    "self_hosted_gke_cuj2": {
+      "time_to_first_success_minutes": 101,
+      "steps": 29,
+      "user_manual_actions": 11,
+      "code_lines": 2300,
+      "infra_resources": 38,
+      "blocking_issues": 6
+    },
+    "takeaways": [
+      "The control-plane experience (agents, sessions, outcomes, budgets) was identical in both; all extra effort in CUJ-2 was infrastructure and data plumbing.",
+      "The two critical CUJ-2 issues (no ack; egress bypass) both came from following the reference sample, and neither raised an error: sessions 'completed' empty, and the network looked locked down but wasn't.",
+      "~22 of ~101 minutes to first success were waiting on GKE (cluster 8m43s + add-on 12m43s).",
+      "Console-only environment key generation was the main point where the user got confused.",
+      "Self-hosted lacks file/GitHub resources, Files API outputs, and vault env-var credentials, so the app had to build staging and collection itself."
+    ]
+  }
+}
